@@ -45,6 +45,7 @@ Map<String, dynamic> _$PollWidgetDataToJson(PollWidgetData instance) =>
 
 const _$WidgetTypeEnumMap = {
   WidgetType.poll: 'poll',
+  WidgetType.todo: 'todo',
   WidgetType.unknown: 'unknown',
 };
 
@@ -121,4 +122,80 @@ const _$PollVoteOpEnumMap = {
   PollVoteOp.add: 1,
   PollVoteOp.remove: -1,
   PollVoteOp.unknown: null,
+};
+
+TodoWidgetData _$TodoWidgetDataFromJson(Map<String, dynamic> json) =>
+    TodoWidgetData(
+      extraData: TodoWidgetExtraData.fromJson(
+        json['extra_data'] as Map<String, dynamic>,
+      ),
+    );
+
+Map<String, dynamic> _$TodoWidgetDataToJson(TodoWidgetData instance) =>
+    <String, dynamic>{
+      'widget_type': _$WidgetTypeEnumMap[instance.widgetType]!,
+      'extra_data': instance.extraData,
+    };
+
+TodoWidgetExtraData _$TodoWidgetExtraDataFromJson(Map<String, dynamic> json) =>
+    TodoWidgetExtraData(
+      taskListTitle: json['task_list_title'] as String? ?? '',
+      tasks:
+          (json['tasks'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+    );
+
+Map<String, dynamic> _$TodoWidgetExtraDataToJson(
+  TodoWidgetExtraData instance,
+) => <String, dynamic>{
+  'task_list_title': instance.taskListTitle,
+  'tasks': instance.tasks,
+};
+
+TodoNewTaskEventSubmessage _$TodoNewTaskEventSubmessageFromJson(
+  Map<String, dynamic> json,
+) => TodoNewTaskEventSubmessage(
+  task: json['task'] as String,
+  idx: (json['idx'] as num).toInt(),
+);
+
+Map<String, dynamic> _$TodoNewTaskEventSubmessageToJson(
+  TodoNewTaskEventSubmessage instance,
+) => <String, dynamic>{
+  'type': _$TodoEventSubmessageTypeEnumMap[instance.type]!,
+  'task': instance.task,
+  'idx': instance.idx,
+};
+
+const _$TodoEventSubmessageTypeEnumMap = {
+  TodoEventSubmessageType.newTask: 'new_task',
+  TodoEventSubmessageType.strike: 'strike',
+  TodoEventSubmessageType.unknown: 'unknown',
+};
+
+TodoStrikeEventSubmessage _$TodoStrikeEventSubmessageFromJson(
+  Map<String, dynamic> json,
+) => TodoStrikeEventSubmessage(
+  key: json['key'] as String,
+  op: $enumDecode(
+    _$TodoStrikeOpEnumMap,
+    json['op'],
+    unknownValue: TodoStrikeOp.unknown,
+  ),
+);
+
+Map<String, dynamic> _$TodoStrikeEventSubmessageToJson(
+  TodoStrikeEventSubmessage instance,
+) => <String, dynamic>{
+  'type': _$TodoEventSubmessageTypeEnumMap[instance.type]!,
+  'key': instance.key,
+  'op': _$TodoStrikeOpEnumMap[instance.op]!,
+};
+
+const _$TodoStrikeOpEnumMap = {
+  TodoStrikeOp.check: 'check',
+  TodoStrikeOp.uncheck: 'uncheck',
+  TodoStrikeOp.unknown: 'unknown',
 };

@@ -47,9 +47,9 @@ class Submessage {
   //   * the parsed [WidgetType] from the first [Message.submessages].
   final String content;
 
-  /// Parse a JSON list into a [Poll].
+  /// Parse a JSON list into a [Poll] or [Todo].
   // TODO: Use a generalized return type when supporting other Zulip widgets.
-  static Poll? parseSubmessagesJson(List<Object?> json, {
+  static Object? parseSubmessagesJson(List<Object?> json, {
     required int messageSenderId,
   }) {
     final submessages = json.map((e) => Submessage.fromJson(e as Map<String, Object?>)).toList();
@@ -63,6 +63,13 @@ class Submessage {
         return Poll.fromSubmessages(
           widgetData: widgetData,
           pollEventSubmessages: submessages.skip(1),
+          messageSenderId: messageSenderId,
+          debugSubmessages: kDebugMode ? submessages : null,
+        );
+      case TodoWidgetData():
+        return Todo.fromSubmessages(
+          widgetData: widgetData,
+          todoEventSubmessages: submessages.skip(1),
           messageSenderId: messageSenderId,
           debugSubmessages: kDebugMode ? submessages : null,
         );
@@ -119,6 +126,7 @@ sealed class WidgetData extends SubmessageData {
     final rawWidgetType = map['widget_type'] as String;
     return switch (WidgetType.fromRawString(rawWidgetType)) {
       WidgetType.poll => PollWidgetData.fromJson(map),
+      WidgetType.todo => TodoWidgetData.fromJson(map),
       WidgetType.unknown => UnsupportedWidgetData.fromJson(map),
     };
   }
@@ -131,7 +139,7 @@ sealed class WidgetData extends SubmessageData {
 @JsonEnum(alwaysCreate: true)
 enum WidgetType {
   poll,
-  // todo,  // TODO(#882)
+  todo,
   // zform,  // This exists in web but is more a demo than a real feature.
   unknown;
 
@@ -354,6 +362,167 @@ class UnknownPollEventSubmessage extends PollEventSubmessage {
   Map<String, Object?> toJson() => json;
 }
 
+/// The data in the first submessage on a todo widget message.
+///
+/// Subsequent submessages on the same message will be [TodoEventSubmessage].
+@JsonSerializable(fieldRename: FieldRename.snake)
+class TodoWidgetData extends WidgetData {
+  @override
+  @JsonKey(includeToJson: true)
+  WidgetType get widgetType => WidgetType.todo;
+
+  /// The initial task list title and task items on the todo widget.
+  final TodoWidgetExtraData extraData;
+
+  TodoWidgetData({required this.extraData});
+
+  factory TodoWidgetData.fromJson(Map<String, Object?> json) =>
+    _$TodoWidgetDataFromJson(json);
+
+  @override
+  Map<String, Object?> toJson() => _$TodoWidgetDataToJson(this);
+}
+
+/// As in [TodoWidgetData.extraData].
+@JsonSerializable(fieldRename: FieldRename.snake)
+class TodoWidgetExtraData {
+  @JsonKey(defaultValue: "")
+  final String taskListTitle;
+  @JsonKey(defaultValue: [])
+  final List<String> tasks;
+
+  const TodoWidgetExtraData({required this.taskListTitle, required this.tasks});
+
+  factory TodoWidgetExtraData.fromJson(Map<String, Object?> json) =>
+    _$TodoWidgetExtraDataFromJson(json);
+
+  Map<String, Object?> toJson() => _$TodoWidgetExtraDataToJson(this);
+}
+
+/// The data in a submessage that acts on a todo widget.
+///
+/// The first submessage on the message should be a [TodoWidgetData].
+sealed class TodoEventSubmessage extends SubmessageData {
+  TodoEventSubmessageType get type;
+
+  TodoEventSubmessage();
+
+  /// The key for identifying the [idx]'th task added by user
+  /// [senderId] to a todo widget.
+  ///
+  /// For tasks that are a part of the initial [TodoWidgetData], the
+  /// [senderId] should be `null`.
+  static TodoTaskKey taskKey({required int? senderId, required int idx}) =>
+    '${senderId ?? 'canned'},$idx';
+
+  factory TodoEventSubmessage.fromJson(Map<String, Object?> json) {
+    final rawTodoEventType = json['type'] as String;
+    switch (TodoEventSubmessageType.fromRawString(rawTodoEventType)) {
+      case TodoEventSubmessageType.newTask: return TodoNewTaskEventSubmessage.fromJson(json);
+      case TodoEventSubmessageType.strike: return TodoStrikeEventSubmessage.fromJson(json);
+      case TodoEventSubmessageType.unknown: return UnknownTodoEventSubmessage.fromJson(json);
+    }
+  }
+
+  @override
+  Map<String, Object?> toJson();
+}
+
+/// As in [TodoEventSubmessage.type].
+@JsonEnum(fieldRename: FieldRename.snake)
+enum TodoEventSubmessageType {
+  newTask,
+  strike,
+  unknown;
+
+  static TodoEventSubmessageType fromRawString(String raw) => _byRawString[raw]!;
+
+  static final _byRawString = _$TodoEventSubmessageTypeEnumMap
+    .map((key, value) => MapEntry(value, key));
+}
+
+typedef TodoTaskKey = String;
+
+/// A todo event when a task is added.
+@JsonSerializable(fieldRename: FieldRename.snake)
+class TodoNewTaskEventSubmessage extends TodoEventSubmessage {
+  @override
+  @JsonKey(includeToJson: true)
+  TodoEventSubmessageType get type => TodoEventSubmessageType.newTask;
+
+  final String task;
+  /// A sequence number for this task, among tasks added to this todo widget
+  /// by this [Submessage.senderId].
+  ///
+  /// See [TodoEventSubmessage.taskKey].
+  final int idx;
+
+  TodoNewTaskEventSubmessage({required this.task, required this.idx});
+
+  @override
+  factory TodoNewTaskEventSubmessage.fromJson(Map<String, Object?> json) =>
+    _$TodoNewTaskEventSubmessageFromJson(json);
+
+  @override
+  Map<String, Object?> toJson() => _$TodoNewTaskEventSubmessageToJson(this);
+}
+
+/// A todo event when a task has been checked or unchecked.
+@JsonSerializable(fieldRename: FieldRename.snake)
+class TodoStrikeEventSubmessage extends TodoEventSubmessage {
+  @override
+  @JsonKey(includeToJson: true)
+  TodoEventSubmessageType get type => TodoEventSubmessageType.strike;
+
+  /// The key of the affected task.
+  ///
+  /// See [TodoEventSubmessage.taskKey].
+  final TodoTaskKey key;
+  @JsonKey(unknownEnumValue: TodoStrikeOp.unknown)
+  final TodoStrikeOp op;
+
+  TodoStrikeEventSubmessage({required this.key, required this.op});
+
+  @override
+  factory TodoStrikeEventSubmessage.fromJson(Map<String, Object?> json) {
+    final result = _$TodoStrikeEventSubmessageFromJson(json);
+    // Crunchy-shell validation
+    final segments = result.key.split(',');
+    final [senderId, idx] = segments;
+    if (senderId != 'canned') {
+      int.parse(senderId, radix: 10);
+    }
+    int.parse(idx, radix: 10);
+    return result;
+  }
+
+  @override
+  Map<String, Object?> toJson() => _$TodoStrikeEventSubmessageToJson(this);
+}
+
+/// As in [TodoStrikeEventSubmessage.op].
+@JsonEnum(fieldRename: FieldRename.snake)
+enum TodoStrikeOp {
+  check,
+  uncheck,
+  unknown;
+
+  String toJson() => _$TodoStrikeOpEnumMap[this]!;
+}
+
+class UnknownTodoEventSubmessage extends TodoEventSubmessage {
+  @override
+  @JsonKey(includeToJson: true)
+  TodoEventSubmessageType get type => TodoEventSubmessageType.unknown;
+
+  final Map<String, Object?> json;
+
+  UnknownTodoEventSubmessage.fromJson(this.json);
+
+  @override
+  Map<String, Object?> toJson() => json;
+}
+
 /// States of a poll Zulip widget.
 ///
 /// See also:
@@ -513,4 +682,152 @@ class PollOption {
 
   @override
   String toString() => 'PollOption(text: $text, voters: {${voters.join(', ')}})';
+}
+
+/// States of a todo Zulip widget.
+///
+/// See also:
+/// - https://zulip.com/help/to-do-lists
+class Todo extends ChangeNotifier {
+  /// Construct a todo widget from submessages.
+  ///
+  /// For a todo Zulip widget, the first submessage's content contains a
+  /// [TodoWidgetData], and all the following submessages' content each contains
+  /// a [TodoEventSubmessage].
+  factory Todo.fromSubmessages({
+    required TodoWidgetData widgetData,
+    required Iterable<Submessage> todoEventSubmessages,
+    required int messageSenderId,
+    required List<Submessage>? debugSubmessages,
+  }) {
+    final todo = Todo._(
+      messageSenderId: messageSenderId,
+      taskListTitle: widgetData.extraData.taskListTitle,
+      tasks: widgetData.extraData.tasks,
+      debugSubmessages: debugSubmessages,
+    );
+
+    for (final submessage in todoEventSubmessages) {
+      final event = TodoEventSubmessage.fromJson(jsonDecode(submessage.content) as Map<String, Object?>);
+      todo._applyEvent(submessage.senderId, event);
+    }
+    return todo;
+  }
+
+  Todo._({
+    required this.messageSenderId,
+    required this.taskListTitle,
+    required List<String> tasks,
+    required List<Submessage>? debugSubmessages,
+  }) {
+    for (int index = 0; index < tasks.length; index += 1) {
+      // Initial todo tasks use a placeholder senderId.
+      // See [TodoEventSubmessage.taskKey] for details.
+      _addTask(senderId: null, idx: index, task: tasks[index]);
+    }
+    if (kDebugMode) {
+      _debugSubmessages = debugSubmessages;
+    }
+  }
+
+  final int messageSenderId;
+  String taskListTitle;
+
+  List<Submessage>? _debugSubmessages;
+
+  /// The limit of tasks any single user can add to a todo widget.
+  static const _maxIdx = 1000;
+
+  Iterable<TodoTask> get tasks => _tasks.values;
+  /// Contains the text of all tasks from [_tasks].
+  final Set<String> _existingTaskTexts = {};
+  final Map<TodoTaskKey, TodoTask> _tasks = {};
+
+  void handleSubmessageEvent(SubmessageEvent event) {
+    final TodoEventSubmessage? todoEventSubmessage;
+    try {
+      todoEventSubmessage = TodoEventSubmessage.fromJson(jsonDecode(event.content) as Map<String, Object?>);
+    } catch (e) {
+      assert(debugLog('Malformed submessage event data for todo: $e\n${jsonEncode(event)}')); // TODO(log)
+      return;
+    }
+    _applyEvent(event.senderId, todoEventSubmessage);
+    notifyListeners();
+
+    if (kDebugMode) {
+      assert(_debugSubmessages != null);
+      _debugSubmessages!.add(Submessage(
+        senderId: event.senderId,
+        msgType: event.msgType,
+        content: event.content));
+    }
+  }
+
+  void _applyEvent(int senderId, TodoEventSubmessage event) {
+    switch (event) {
+      case TodoNewTaskEventSubmessage():
+        _addTask(senderId: senderId, idx: event.idx, task: event.task);
+
+      case TodoStrikeEventSubmessage():
+        final task = _tasks[event.key];
+        if (task == null) {
+          assert(debugLog('strike for unknown key ${event.key}')); // TODO(log)
+          return;
+        }
+
+        switch (event.op) {
+          case TodoStrikeOp.check:
+            task.completed = true;
+          case TodoStrikeOp.uncheck:
+            task.completed = false;
+          case TodoStrikeOp.unknown:
+            assert(debugLog('unknown strike op ${event.op}')); // TODO(log)
+        }
+
+      case UnknownTodoEventSubmessage():
+    }
+  }
+
+  void _addTask({required int? senderId, required int idx, required String task}) {
+    if (idx > _maxIdx || idx < 0) return;
+
+    // Suppress duplicate tasks, similar to poll options.
+    if (_existingTaskTexts.contains(task)) return;
+
+    final key = TodoEventSubmessage.taskKey(senderId: senderId, idx: idx);
+    assert(!_tasks.containsKey(key));
+    _tasks[key] = TodoTask(key: key, text: task);
+    _existingTaskTexts.add(task);
+  }
+
+  static Todo? fromJson(Object? json) {
+    // [Submessage.parseSubmessagesJson] does all the heavy lifting for parsing.
+    return json as Todo?;
+  }
+
+  static List<Submessage> toJson(Todo? todo) {
+    List<Submessage>? result;
+
+    if (kDebugMode) {
+      // Useful for setting up a message list with a todo message, which goes
+      // through this codepath (when preparing a fetch response).
+      result = todo?._debugSubmessages;
+    }
+
+    // In prod, rather than maintaining a up-to-date submessages list,
+    // return as if it is empty, because we are not sending the submessages
+    // to the server anyway.
+    return result ?? [];
+  }
+}
+
+class TodoTask {
+  TodoTask({required this.key, required this.text, this.completed = false});
+
+  final TodoTaskKey key;
+  final String text;
+  bool completed;
+
+  @override
+  String toString() => 'TodoTask(text: $text, completed: $completed)';
 }

@@ -437,7 +437,8 @@ StreamMessage _$StreamMessageFromJson(Map<String, dynamic> json) =>
         StreamMessage._readConversation(json, 'conversation')
             as Map<String, dynamic>,
       ),
-    )..poll = Poll.fromJson(Message._readPoll(json, 'submessages'));
+    )..poll = Poll.fromJson(Message._readPoll(json, 'submessages'))
+     ..todo = Todo.fromJson(Message._readTodo(json, 'submessages'));
 
 Map<String, dynamic> _$StreamMessageToJson(StreamMessage instance) =>
     <String, dynamic>{
@@ -455,7 +456,7 @@ Map<String, dynamic> _$StreamMessageToJson(StreamMessage instance) =>
       'sender_email': instance.senderEmail,
       'sender_full_name': instance.senderFullName,
       'sender_realm_str': instance.senderRealmStr,
-      'submessages': Poll.toJson(instance.poll),
+      'submessages': Message._writeSubmessages(instance),
       'flags': instance.flags,
       'match_content': instance.matchContent,
       'match_subject': instance.matchTopic,
@@ -494,7 +495,8 @@ DmMessage _$DmMessageFromJson(Map<String, dynamic> json) => DmMessage(
   conversation: DmMessage._conversationFromJson(
     json['display_recipient'] as List,
   ),
-)..poll = Poll.fromJson(Message._readPoll(json, 'submessages'));
+)..poll = Poll.fromJson(Message._readPoll(json, 'submessages'))
+ ..todo = Todo.fromJson(Message._readTodo(json, 'submessages'));
 
 Map<String, dynamic> _$DmMessageToJson(DmMessage instance) => <String, dynamic>{
   'sender_id': instance.senderId,
@@ -511,7 +513,7 @@ Map<String, dynamic> _$DmMessageToJson(DmMessage instance) => <String, dynamic>{
   'sender_email': instance.senderEmail,
   'sender_full_name': instance.senderFullName,
   'sender_realm_str': instance.senderRealmStr,
-  'submessages': Poll.toJson(instance.poll),
+  'submessages': Message._writeSubmessages(instance),
   'flags': instance.flags,
   'match_content': instance.matchContent,
   'match_subject': instance.matchTopic,

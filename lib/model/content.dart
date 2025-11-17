@@ -88,6 +88,16 @@ class PollContent implements ZulipMessageContent {
   final Poll poll;
 }
 
+/// A wrapper around a mutable representation of a Zulip todo message.
+///
+/// Consumers are expected to listen for [Todo]'s changes to receive
+/// live-updates.
+class TodoContent implements ZulipMessageContent {
+  const TodoContent(this.todo);
+
+  final Todo todo;
+}
+
 /// A complete parse tree for a Zulip message's content,
 /// or other complete piece of Zulip HTML content.
 ///
@@ -2039,5 +2049,7 @@ ZulipContent parseContent(String html) {
 ZulipMessageContent parseMessageContent(Message message) {
   final poll = message.poll;
   if (poll != null) return PollContent(poll);
+  final todo = message.todo;
+  if (todo != null) return TodoContent(todo);
   return parseContent(message.content);
 }

@@ -1111,6 +1111,10 @@ sealed class Message<T extends Conversation> extends MessageBase<T> {
   @JsonKey(name: 'submessages', readValue: _readPoll, fromJson: Poll.fromJson, toJson: Poll.toJson)
   Poll? poll;
 
+  /// Todo data if "submessages" describe a todo widget, `null` otherwise.
+  @JsonKey(name: 'submessages', readValue: _readTodo, fromJson: Todo.fromJson, toJson: Todo.toJson)
+  Todo? todo;
+
   String get type;
 
   // final List<TopicLink> topicLinks; // TODO handle
@@ -1142,10 +1146,25 @@ sealed class Message<T extends Conversation> extends MessageBase<T> {
   }
 
   static Poll? _readPoll(Map<Object?, Object?> json, String key) {
-    return Submessage.parseSubmessagesJson(
+    final result = Submessage.parseSubmessagesJson(
       json['submessages'] as List<Object?>? ?? [],
       messageSenderId: (json['sender_id'] as num).toInt(),
     );
+    return result is Poll ? result : null;
+  }
+
+  static Todo? _readTodo(Map<Object?, Object?> json, String key) {
+    final result = Submessage.parseSubmessagesJson(
+      json['submessages'] as List<Object?>? ?? [],
+      messageSenderId: (json['sender_id'] as num).toInt(),
+    );
+    return result is Todo ? result : null;
+  }
+
+  static List<Submessage> _writeSubmessages(Message message) {
+    if (message.poll != null) return Poll.toJson(message.poll);
+    if (message.todo != null) return Todo.toJson(message.todo);
+    return [];
   }
 
   Message({

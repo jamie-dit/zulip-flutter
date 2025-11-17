@@ -1294,6 +1294,14 @@
   "@pollWidgetOptionsMissing": {
     "description": "Text to display for a poll when it has no options"
   },
+  "todoWidgetTitleMissing": "No title.",
+  "@todoWidgetTitleMissing": {
+    "description": "Text to display for a todo widget when the title is missing"
+  },
+  "todoWidgetTasksMissing": "This todo list has no tasks yet.",
+  "@todoWidgetTasksMissing": {
+    "description": "Text to display for a todo widget when it has no tasks"
+  },
   "initialAnchorSettingTitle": "Open message feeds at",
   "@initialAnchorSettingTitle": {
     "description": "Title of setting controlling initial anchor of message list."

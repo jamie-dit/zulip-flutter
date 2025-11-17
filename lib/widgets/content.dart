@@ -22,6 +22,7 @@ import 'lightbox.dart';
 import 'message_list.dart';
 import 'poll.dart';
 import 'scrolling.dart';
+import 'todo.dart';
 import 'store.dart';
 import 'text.dart';
 import 'theme.dart';
@@ -301,6 +302,7 @@ class MessageContent extends StatelessWidget {
         child: switch (content) {
           ZulipContent() => BlockContentList(nodes: content.nodes),
           PollContent()  => PollWidget(messageId: message.id, poll: content.poll),
+          TodoContent()  => TodoWidget(messageId: message.id, todo: content.todo),
         }));
   }
 }

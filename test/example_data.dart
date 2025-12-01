@@ -952,6 +952,14 @@ PollWidgetData pollWidgetData({
     extraData: PollWidgetExtraData(question: question, options: options));
 }
 
+TodoWidgetData todoWidgetData({
+  required String taskListTitle,
+  required List<String> tasks,
+}) {
+  return TodoWidgetData(
+    extraData: TodoWidgetExtraData(taskListTitle: taskListTitle, tasks: tasks));
+}
+
 Submessage submessage({
   SubmessageType? msgType,
   required SubmessageData? content,
